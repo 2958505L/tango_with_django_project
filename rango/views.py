@@ -8,6 +8,9 @@ from rango.forms import CategoryForm
 from django.shortcuts import redirect
 from rango.forms import PageForm
 from django.urls import reverse
+from rango.forms import UserForm, UserProfileForm
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
 # Create your views here.
 
 def index(request):
@@ -60,7 +63,7 @@ def show_category(request, category_name_slug):
     return render(request, 'rango/category.html', context=context_dict)
 
 
-
+@login_required
 def add_category(request):
     form = CategoryForm()
     # A HTTP POST?
@@ -82,7 +85,7 @@ def add_category(request):
     return render(request, 'rango/add_category.html', {'form': form})
 
 
-
+@login_required
 def add_page(request, category_name_slug):
     try:
         category = Category.objects.get(slug=category_name_slug)
@@ -129,20 +132,108 @@ def show_category(request, category_name_slug):
 
 
 
+def register(request):
+    # A boolean value to indicate if the registration was successful.
+    registered = False
+
+    # If it's a HTTP POST, we're interested in processing form data.
+    if request.method == 'POST':
+        # Attempt to grab information from the raw form information.
+        user_form = UserForm(request.POST)
+        profile_form = UserProfileForm(request.POST)
+
+        # If the two forms are valid...
+        if user_form.is_valid() and profile_form.is_valid():
+            # Save the user's form data to the database.
+            user = user_form.save()
+
+            # Hash the password with the set_password method and save the user.
+            user.set_password(user.password)
+            user.save()
+
+            # Create a UserProfile instance, but delay saving to set the user.
+            profile = profile_form.save(commit=False)
+            profile.user = user
+
+            # Check if the user provided a profile picture.
+            if 'picture' in request.FILES:
+                profile.picture = request.FILES['picture']
+
+            # Save the UserProfile instance.
+            profile.save()
+
+            # Update our variable to indicate successful registration.
+            registered = True
+        else:
+            # Invalid form(s) - print errors to the console.
+            print(user_form.errors, profile_form.errors)
+
+    else:
+        # Not a HTTP POST, so render a blank form.
+        user_form = UserForm()
+        profile_form = UserProfileForm()
+
+    # Render the template with the context.
+    return render(request, 'rango/register.html', {
+        'user_form': user_form,
+        'profile_form': profile_form,
+        'registered': registered
+    })
 
 
 
+def user_login(request):
+    # If the request is a HTTP POST, try to pull out the relevant information.
+    if request.method == 'POST':
+        # Gather the username and password provided by the user.
+        # Using request.POST.get('<variable>') to avoid KeyError exceptions.
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+
+        # Authenticate the user.
+        user = authenticate(username=username, password=password)
+
+        # If the authentication is successful, a User object is returned.
+        if user:
+            # Check if the account is active.
+            if user.is_active:
+                # Log the user in and redirect to the homepage.
+                login(request, user)
+                return redirect(reverse('rango:index'))
+            else:
+                # Account is inactive.
+                return HttpResponse("Your Rango account is disabled.")
+        else:
+            # Invalid login details provided.
+            print(f"Invalid login details: {username}, {password}")
+            return HttpResponse("Invalid login details supplied.")
+
+    # If the request is not a HTTP POST, display the login form.
+    else:
+        # No context variables to pass to the template system.
+        return render(request, 'rango/login.html')
 
 
 
+@login_required
+def restricted(request):
+    return HttpResponse("Since you're logged in, you can see this text!")
 
 
 
+# Use the login_required() decorator to ensure only those logged in can
+# access the view.
+@login_required
+def user_logout(request):
+    # Since we know the user is logged in, we can now just log them out.
+    logout(request)
+    # Take the user back to the homepage.
+    return redirect(reverse('rango:index'))
 
 
-
-
-
+@login_required
+def restricted(request):
+    return render(request, 'rango/restricted.html')
 
 
 
