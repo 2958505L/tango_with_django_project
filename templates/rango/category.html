@@ -26,6 +26,16 @@
         </div>
 
         <div>
+            {% if category and category.slug %}
+                <a href="/rango/category/{{ category.slug }}/add_page/">Add Page</a>
+            {% else %}
+                <p>Category does not exist or is invalid.</p>
+            {% endif %}
+
+        </div>
+
+
+        <div>
             <a href="{% url 'rango:index' %}">Index</a>
         </div>
 
